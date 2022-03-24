@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  python:
+    build:
+      context: .
+      dockerfile: ./compose/python/Dockerfile
+    image: discord_bot
+    restart: unless-stopped
+    container_name: discord_bot
+    volumes:
+      - ./:/app:z
+    env_file:
+      - .env
