@@ -45,7 +45,7 @@ class RedditCommands(commands.Cog, RedditMixin):
             self.manage_subscription(
                 channel_id=ctx.channel.id,
                 subreddit=subreddit,
-                callback=self.fetch_subcriptions.restart(),
+                callback=self.fetch_subcriptions.restart,
             )
         else:
             message = f"Subreddit {subreddit} does not exist!"
@@ -62,7 +62,7 @@ class RedditCommands(commands.Cog, RedditMixin):
                 channel_id=ctx.channel.id,
                 subreddit=subreddit,
                 subscribe=False,
-                callback=self.fetch_subcriptions.restart(),
+                callback=self.fetch_subcriptions.restart,
             )
         else:
             message = f"Subreddit {subreddit} is not subscribed!"
@@ -151,7 +151,7 @@ class RedditCommands(commands.Cog, RedditMixin):
     ) -> None:
         message = f"Subreddit {subreddit} has been unbanned!"
         self.manage_moderation(
-            subreddit=subreddit, ban=False, callback=self.fetch_subcriptions.restart()
+            subreddit=subreddit, ban=False, callback=self.fetch_subcriptions.restart
         )
         await ctx.send(message)
 
