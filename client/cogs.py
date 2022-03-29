@@ -166,8 +166,6 @@ class RedditCommands(commands.Cog, RedditMixin):
             async for submission in subscribed.stream.submissions(skip_existing=True):
                 subreddit = submission.subreddit.display_name
                 channel_id = subreddits.get(subreddit)
-                print(channel_id)
-                print(self.bot.get_channel(channel_id))
                 async with self.bot.get_channel(channel_id).typing():
                     await self.bot.get_channel(channel_id).send(
                         embed=await create_discord_embed(submission)

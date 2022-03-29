@@ -45,12 +45,14 @@ async def create_discord_embed(
         ),
     }
 
-    html = html2text.HTML2Text()
-    html.ignore_links = True
-    embed_dict["description"] = f"{html.handle(embed_dict.get('description'))[:150]}..."
     embed_dict["timestamp"] = datetime.fromtimestamp(
         embed_dict.get("created")
     ).strftime("%Y-%m-%dT%H:%M:%S")
+
+    if description := embed_dict.get("description"):
+        html = html2text.HTML2Text()
+        html.ignore_links = True
+        embed_dict["description"] = f"{html.handle(description)[:150]}..."
 
     await submission.author.load()
     if name := getattr(submission.author, "name"):
