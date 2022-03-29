@@ -22,11 +22,11 @@ class RedditCommands(commands.Cog, RedditMixin):
         """Init method."""
         super().__init__(*args, **kwargs)
         self.bot = bot
-        self.fetch_subcriptions.start()
+        self.fetch_subscriptions.start()
 
     def cog_unload(self) -> None:
         """Unload cog."""
-        self.fetch_subcriptions.cancel()
+        self.fetch_subscriptions.cancel()
 
     @commands.command(name="sub", help="Subscribe to a subreddit")
     @commands.has_any_role(*DISCORD_BOT_ADVANCED_COMMANDS_ROLES)
@@ -45,12 +45,13 @@ class RedditCommands(commands.Cog, RedditMixin):
             self.manage_subscription(
                 channel_id=ctx.channel.id,
                 subreddit=subreddit,
-                callback=self.fetch_subcriptions.restart,
+                callback=self.fetch_subscriptions.restart,
             )
         else:
             message = f"Subreddit {subreddit} does not exist!"
         await ctx.send(message)
 
+    # Check issue here
     @commands.command(name="unsub", help="Unsubscribe from a subreddit")
     @commands.has_any_role(*DISCORD_BOT_ADVANCED_COMMANDS_ROLES)
     async def remove_subreddit(
@@ -62,7 +63,7 @@ class RedditCommands(commands.Cog, RedditMixin):
                 channel_id=ctx.channel.id,
                 subreddit=subreddit,
                 subscribe=False,
-                callback=self.fetch_subcriptions.restart,
+                callback=self.fetch_subscriptions.restart,
             )
         else:
             message = f"Subreddit {subreddit} is not subscribed!"
@@ -151,12 +152,12 @@ class RedditCommands(commands.Cog, RedditMixin):
     ) -> None:
         message = f"Subreddit {subreddit} has been unbanned!"
         self.manage_moderation(
-            subreddit=subreddit, ban=False, callback=self.fetch_subcriptions.restart
+            subreddit=subreddit, ban=False, callback=self.fetch_subscriptions.restart
         )
         await ctx.send(message)
 
     @tasks.loop()
-    async def fetch_subcriptions(self) -> None:
+    async def fetch_subscriptions(self) -> None:
         """Fetch submissions from subscribed subreddits."""
         if subreddits := {
             subreddit: channel_id for channel_id, subreddit in self.get_subscriptions()
@@ -165,12 +166,12 @@ class RedditCommands(commands.Cog, RedditMixin):
             async for submission in subscribed.stream.submissions(skip_existing=True):
                 subreddit = submission.subreddit.display_name
                 channel_id = subreddits.get(subreddit)
+                print(channel_id)
+                print(self.bot.get_channel(channel_id))
                 async with self.bot.get_channel(channel_id).typing():
                     await self.bot.get_channel(channel_id).send(
                         embed=await create_discord_embed(submission)
                     )
-
-        self.fetch_subcriptions.stop()
 
 
 class CommandsErrorHandler(commands.Cog):

@@ -1,17 +1,35 @@
 """Collection of utility functions."""
 
 from datetime import datetime
-from typing import Any, Union, List, Dict
+from typing import Any, Union, Dict, Optional, Iterable
 
 import html2text
+import tabulate
 from asyncpraw.models import Submission
 from discord import Embed
-import tabulate
 
 
-def get_attributes(obj: Any, attributes: List[str]) -> Dict[str, Any]:
+def get_attributes(
+    obj: Any,
+    remap: Optional[
+        Dict[
+            str,
+            str,
+        ]
+    ] = None,
+    attrs: Optional[Iterable[str]] = None,
+) -> Dict[str, Any]:
     """Extract a list of attributes from a Reddit object."""
-    return {attribute: getattr(obj, attribute) for attribute in attributes}
+    if not remap and not attrs:
+        raise ValueError("Must provide remap or attributes.")
+    attributes = {}
+    if remap:
+        for key, value in remap.items():
+            attributes[value] = getattr(obj, key)
+    if attrs:
+        for attribute in attrs:
+            attributes[attribute] = getattr(obj, attribute)
+    return attributes
 
 
 async def create_discord_embed(
@@ -20,24 +38,25 @@ async def create_discord_embed(
     """Create a discord embed from a Reddit submission."""
     embed_dict = {
         "color": color,
-        **get_attributes(submission, ["title", "url", "selftext_html", "created"]),
+        **get_attributes(
+            obj=submission,
+            remap={"selftext_html": "description", "shortlink": "url"},
+            attrs=("title", "created"),
+        ),
     }
 
-    if embed_dict.get("selftext_html"):
-        html = html2text.HTML2Text()
-        html.ignore_links = True
-        embed_dict["description"] = f"{html.handle(submission.selftext_html)[:150]}..."
-
-    if created := embed_dict.get("created"):
-        embed_dict["timestamp"] = datetime.fromtimestamp(created).strftime(
-            "%Y-%m-%dT%H:%M:%S"
-        )
+    html = html2text.HTML2Text()
+    html.ignore_links = True
+    embed_dict["description"] = f"{html.handle(embed_dict.get('description'))[:150]}..."
+    embed_dict["timestamp"] = datetime.fromtimestamp(
+        embed_dict.get("created")
+    ).strftime("%Y-%m-%dT%H:%M:%S")
 
     await submission.author.load()
-    embed_dict["author"] = {
-        "name": submission.author.name,
-        "icon_url": submission.author.icon_img,
-    }
+    if name := getattr(submission.author, "name"):
+        embed_dict.setdefault("author", {})["name"] = name
+    if icon_url := getattr(submission.author, "icon_img"):
+        embed_dict.setdefault("author", {})["icon_url"] = icon_url
 
     return Embed.from_dict(embed_dict)
 
