@@ -1,9 +1,8 @@
 """Collection of discord cogs."""
 
-import traceback
-from logging import Logger
 from typing import Optional
 
+import asyncprawcore
 from discord import Embed
 from discord.ext import tasks, commands
 
@@ -12,7 +11,7 @@ from settings import (
     DISCORD_BOT_NORMAL_COMMANDS_ROLES,
 )
 from .mixins import RedditMixin
-from .utils import create_table, create_discord_embed, format_input
+from .utils import create_table, create_discord_embed, format_input, format_exception
 
 
 class RedditCommands(commands.Cog, RedditMixin):
@@ -163,28 +162,35 @@ class RedditCommands(commands.Cog, RedditMixin):
             subreddit: channel_id for channel_id, subreddit in self.get_subscriptions()
         }:
             subscribed = await self.reddit.subreddit("+".join(subreddits.keys()))
-            async for submission in subscribed.stream.submissions(skip_existing=True):
-                subreddit = submission.subreddit.display_name
-                channel_id = subreddits.get(subreddit)
-                async with self.bot.get_channel(channel_id).typing():
-                    await self.bot.get_channel(channel_id).send(
-                        embed=await create_discord_embed(submission)
-                    )
+            try:
+                async for submission in subscribed.stream.submissions(
+                    skip_existing=True
+                ):
+                    subreddit = submission.subreddit.display_name
+                    channel_id = subreddits.get(subreddit)
+                    if channel := self.bot.get_channel(channel_id):
+                        async with channel.typing():
+                            await channel.send(
+                                embed=await create_discord_embed(submission)
+                            )
+            except asyncprawcore.exceptions.RequestException as error:
+                self.bot.logger.error(format_exception(error=error))
+                self.fetch_subscriptions.restart()
 
 
 class CommandsErrorHandler(commands.Cog):
     """Error handling for the bot."""
 
-    def __init__(self, bot: commands.Bot, logger: Logger) -> None:
+    def __init__(self, bot: commands.Bot) -> None:
         """Init method."""
         self.bot = bot
-        self.logger = logger
 
     @commands.Cog.listener()
     async def on_command_error(
         self, ctx: commands.Context, error: commands.CommandError
     ) -> None:
         """A global error handler cog."""
+        message = "Oh no! Something went wrong while running the command!"
 
         if isinstance(error, commands.CommandNotFound):
             return  # Return because we don't want to show an error for every command not found
@@ -196,17 +202,6 @@ class CommandsErrorHandler(commands.Cog):
             message = "You are missing the required role to run this command!"
         elif isinstance(error, commands.UserInputError):
             message = "Something about your input was wrong, please check your input and try again!"
-        else:
-            self.logger.error(
-                "In {0.command.qualified_name}:\n{1}".format(
-                    ctx,
-                    " ".join(
-                        traceback.format_exception(
-                            type(error), error, error.__traceback__
-                        )
-                    ),
-                )
-            )
-            message = "Oh no! Something went wrong while running the command!"
 
+        self.bot.logger.error(format_exception(error=error))
         await ctx.send(message)

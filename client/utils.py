@@ -1,5 +1,5 @@
 """Collection of utility functions."""
-
+import traceback
 from datetime import datetime
 from typing import Any, Union, Dict, Optional, Iterable
 
@@ -61,6 +61,14 @@ async def create_discord_embed(
         embed_dict.setdefault("author", {})["icon_url"] = icon_url
 
     return Embed.from_dict(embed_dict)
+
+
+def format_exception(error: Exception) -> str:
+    """Format an exception."""
+    return "In {0}:\n{1}".format(
+        {traceback.extract_stack(None, 2)[0][2]},
+        " ".join(traceback.format_exception(type(error), error, error.__traceback__)),
+    )
 
 
 def create_table(data: Any, tablefmt: str = "fancy_grid", **kwargs) -> str:

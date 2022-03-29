@@ -14,6 +14,7 @@ from settings import (
 def main():
     """Main function."""
     bot = Bot(command_prefix="!")
+    bot.logger = logger
     bot.add_cog(
         RedditCommands(
             bot=bot,
@@ -22,7 +23,7 @@ def main():
             client_secret=REDDIT_BOT_SECRET,
         )
     )
-    bot.add_cog(CommandsErrorHandler(bot=bot, logger=logger))
+    bot.add_cog(CommandsErrorHandler(bot=bot))
     bot.run(DISCORD_BOT_TOKEN)
 
 
