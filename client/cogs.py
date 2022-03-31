@@ -1,8 +1,8 @@
 """Collection of discord cogs."""
+import asyncio
 
-from typing import Optional
-
-import asyncprawcore
+from aiohttp import ClientOSError
+from asyncprawcore import RequestException
 from discord import Embed
 from discord.ext import tasks, commands
 
@@ -76,25 +76,25 @@ class RedditCommands(commands.Cog, RedditMixin):
         self,
         ctx: commands.context.Context,
         subreddit_or_redditor: format_input,
-        limit: Optional[int] = 1,
+        *submission_name_args,
     ) -> None:
         """Fetch a post from a subreddit and post to discord."""
         async with ctx.typing():
-            if not self.subreddit_is_banned(subreddit=subreddit_or_redditor):
-                submissions = await self.fetch(
-                    subreddit_or_redditor=subreddit_or_redditor, limit=limit
-                )
-                if submissions:
-                    [
-                        await ctx.send(embed=await create_discord_embed(sub))
-                        async for sub in submissions
-                    ]
-                else:
-                    await ctx.send(f"No results found for {subreddit_or_redditor}!")
-            else:
+            if self.subreddit_is_banned(subreddit=subreddit_or_redditor):
                 await ctx.send(
                     f"Subreddit {subreddit_or_redditor} is banned and cannot be fetched!"
                 )
+
+            elif submissions := await self.fetch(
+                subreddit_or_redditor=subreddit_or_redditor,
+                search_term="+".join(submission_name_args[:]),
+            ):
+                [
+                    await ctx.send(embed=await create_discord_embed(sub))
+                    async for sub in submissions
+                ]
+            else:
+                await ctx.send(f"No results found for {subreddit_or_redditor}!")
 
     @commands.command(name="subbed", help="List all subscribed subreddits")
     @commands.has_any_role(
@@ -173,8 +173,11 @@ class RedditCommands(commands.Cog, RedditMixin):
                             await channel.send(
                                 embed=await create_discord_embed(submission)
                             )
-            except asyncprawcore.exceptions.RequestException as error:
-                self.bot.logger.error(format_exception(error=error))
+            except (
+                RequestException,
+                ClientOSError,
+                asyncio.exceptions.TimeoutError,
+            ):
                 self.fetch_subscriptions.restart()
 
 

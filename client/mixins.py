@@ -1,11 +1,12 @@
 """Collection of mixins."""
-
 import json
 from typing import Any, Dict, List, Union, Generator, Optional, Callable
 
 import asyncpraw
 import asyncprawcore
-from asyncpraw.models import ListingGenerator, Redditor
+from asyncpraw.models import ListingGenerator
+
+from client.models import RedditHelper
 
 
 class StorageMixin:
@@ -65,7 +66,6 @@ class RedditMixin(StorageMixin):
             client_secret=client_secret,
             user_agent=f"DISCORD_BOT:{client_id}:1.0",
         )
-        self.sorting_options = ("new", "hot", "top", "rising", "controversial")
 
     async def subreddit_exists(self, subreddit: str) -> bool:
         """Check if a subreddit exists."""
@@ -86,35 +86,32 @@ class RedditMixin(StorageMixin):
         self,
         subreddit_or_redditor: str,
         search_type: Optional[str] = "subreddit",
+        search_term: Optional[str] = None,
         fetch: Optional[bool] = True,
-        sort: Optional[str] = "new",
-        limit: Optional[int] = None,
+        sort: Optional[str] = None,
+        limit: Optional[int] = 1,
         *args,
         **kwargs,
     ) -> Union[ListingGenerator, List]:
         """Fetch posts from a subreddit or a redditor."""
-        if sort not in self.sorting_options:
-            raise ValueError(
-                "Sort must be one of new, hot, top, rising or controversial."
-            )
-
-        if search_type not in ("subreddit", "redditor"):
-            raise ValueError("Search type must be either subreddit or redditor.")
-
         if not await self.subreddit_exists(subreddit=subreddit_or_redditor):
             search_type = "redditor"
 
+        if not search_term:
+            sort = "new"
+
         results = []
         try:
-            response = await getattr(self.reddit, search_type)(
-                subreddit_or_redditor,
+            helper = RedditHelper(reddit=self.reddit, method=search_type)
+            results = await helper.filter(
+                query=subreddit_or_redditor,
+                search_term=search_term,
                 fetch=fetch,
+                sort=sort,
+                limit=limit,
                 *args,
                 **kwargs,
             )
-            if isinstance(response, Redditor):
-                response = getattr(response, "submissions")
-            results = getattr(response, sort)(limit=limit)
         except asyncprawcore.exceptions.Redirect:
             pass
         return results
