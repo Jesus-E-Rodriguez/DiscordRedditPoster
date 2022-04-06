@@ -1,14 +1,27 @@
 """Collection of utility functions."""
+import asyncio
+import socket
 import traceback
 from datetime import datetime
-from functools import wraps
 from typing import Any, Union, Dict, Optional, Iterable, Generator, Mapping, Callable
 
+import asyncprawcore
 import html2text
 import tabulate
+from aiohttp import ClientOSError, ClientConnectorError
 from asyncpraw.models import Submission, Subreddit
 from asyncpraw.models.listing.mixins.redditor import SubListing
+from asyncprawcore import RequestException
 from discord import Embed
+
+EXCEPTIONS = (
+    RequestException,
+    ClientOSError,
+    asyncio.exceptions.TimeoutError,
+    asyncprawcore.exceptions.ResponseException,
+    ClientConnectorError,
+    socket.gaierror,
+)
 
 
 def from_config(command: Callable, *cargs, **ckwargs) -> Callable:

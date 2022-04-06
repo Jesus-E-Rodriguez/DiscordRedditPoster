@@ -1,9 +1,4 @@
 """Collection of discord cogs."""
-import asyncio
-
-import asyncprawcore
-from aiohttp import ClientOSError
-from asyncprawcore import RequestException
 from discord import Embed
 from discord.ext import tasks, commands
 
@@ -14,6 +9,7 @@ from .utils import (
     format_input,
     format_exception,
     from_config,
+    EXCEPTIONS,
 )
 
 import logging
@@ -196,15 +192,10 @@ class RedditCommands(commands.Cog):
                             await channel.send(
                                 embed=await create_discord_embed(submission)
                             )
-            except (
-                RequestException,
-                ClientOSError,
-                asyncio.exceptions.TimeoutError,
-                asyncprawcore.exceptions.ResponseException,
-                Exception,
-            ) as error:
-                logger = logging.getLogger(self.bot.config.LOGFILENAME)
-                logger.error(format_exception(error=error))
+            except (Exception, *EXCEPTIONS) as error:
+                if error not in EXCEPTIONS:
+                    logger = logging.getLogger(self.bot.config.LOGFILENAME)
+                    logger.error(format_exception(error=error))
                 self.fetch_subscriptions.restart()
 
 
