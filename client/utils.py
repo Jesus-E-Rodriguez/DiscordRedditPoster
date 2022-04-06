@@ -1,7 +1,8 @@
 """Collection of utility functions."""
 import traceback
 from datetime import datetime
-from typing import Any, Union, Dict, Optional, Iterable, Generator
+from functools import wraps
+from typing import Any, Union, Dict, Optional, Iterable, Generator, Mapping, Callable
 
 import html2text
 import tabulate
@@ -9,7 +10,25 @@ from asyncpraw.models import Submission, Subreddit
 from asyncpraw.models.listing.mixins.redditor import SubListing
 from discord import Embed
 
-# fix issue with fetching the latest submission
+
+def from_config(command: Callable, *cargs, **ckwargs) -> Callable:
+    """Feed config args to a command."""
+
+    def decorator(func: Callable) -> Callable:
+        async def wrapper(ctx, *args, **kwargs) -> Any:
+            new_args = ()
+            for carg in cargs:
+                if attr := getattr(
+                    ctx.bot.config,
+                    carg,
+                ):
+                    new_args += (*attr,) if isinstance(attr, Iterable) else attr
+            if command(*new_args, **ckwargs):
+                return await func(ctx, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 async def refined_filter(
@@ -115,7 +134,11 @@ def format_exception(error: Exception) -> str:
     )
 
 
-def create_table(data: Any, tablefmt: str = "fancy_grid", **kwargs) -> str:
+def create_table(
+    data: Union[Mapping[str, Iterable], Iterable[Iterable]],
+    tablefmt: str = "fancy_grid",
+    **kwargs,
+) -> str:
     """Create a str table from data."""
     return tabulate.tabulate(data, headers="keys", tablefmt=tablefmt, **kwargs)
 

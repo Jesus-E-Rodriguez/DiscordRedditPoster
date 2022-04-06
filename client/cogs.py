@@ -1,26 +1,36 @@
 """Collection of discord cogs."""
 import asyncio
 
+import asyncprawcore
 from aiohttp import ClientOSError
 from asyncprawcore import RequestException
 from discord import Embed
 from discord.ext import tasks, commands
 
-from settings import (
-    DISCORD_BOT_ADVANCED_COMMANDS_ROLES,
-    DISCORD_BOT_NORMAL_COMMANDS_ROLES,
+from .mixins import Reddit
+from .utils import (
+    create_table,
+    create_discord_embed,
+    format_input,
+    format_exception,
+    from_config,
 )
-from .mixins import RedditMixin
-from .utils import create_table, create_discord_embed, format_input, format_exception
+
+import logging
 
 
-class RedditCommands(commands.Cog, RedditMixin):
+class RedditCommands(commands.Cog):
     """Main Bot class"""
 
     def __init__(self, bot: commands.Bot, *args, **kwargs) -> None:
         """Init method."""
         super().__init__(*args, **kwargs)
         self.bot = bot
+        self.reddit = Reddit(
+            client_id=bot.config.REDDIT_CLIENT_ID,
+            client_secret=bot.config.REDDIT_CLIENT_SECRET,
+            filename=bot.config.FILENAME,
+        )
         self.fetch_subscriptions.start()
 
     def cog_unload(self) -> None:
@@ -28,20 +38,21 @@ class RedditCommands(commands.Cog, RedditMixin):
         self.fetch_subscriptions.cancel()
 
     @commands.command(name="sub", help="Subscribe to a subreddit")
-    @commands.has_any_role(*DISCORD_BOT_ADVANCED_COMMANDS_ROLES)
+    @from_config(commands.has_any_role, "DISCORD_BOT_ADVANCED_COMMANDS_ROLES")
     async def add_subreddit(
         self, ctx: commands.context.Context, subreddit: format_input
     ) -> None:
         """Add a subreddit to subscriptions."""
+        commands.has_any_role()
         message = f"Subrredit {subreddit} has been subcribed!"
-        if self.subreddit_is_banned(subreddit=subreddit):
+        if self.reddit.subreddit_is_banned(subreddit=subreddit):
             message = f"Subreddit {subreddit} is banned and cannot be subscribed to!"
-        elif self.subreddit_is_subscribed(
+        elif self.reddit.subreddit_is_subscribed(
             channel_id=ctx.channel.id, subreddit=subreddit
         ):
             message = f"Subreddit {subreddit} is already subscribed!"
-        elif await self.subreddit_exists(subreddit=subreddit):
-            self.manage_subscription(
+        elif await self.reddit.subreddit_exists(subreddit=subreddit):
+            self.reddit.manage_subscription(
                 channel_id=ctx.channel.id,
                 subreddit=subreddit,
                 callback=self.fetch_subscriptions.restart,
@@ -50,15 +61,16 @@ class RedditCommands(commands.Cog, RedditMixin):
             message = f"Subreddit {subreddit} does not exist!"
         await ctx.send(message)
 
-    # Check issue here
     @commands.command(name="unsub", help="Unsubscribe from a subreddit")
-    @commands.has_any_role(*DISCORD_BOT_ADVANCED_COMMANDS_ROLES)
+    @from_config(commands.has_any_role, "DISCORD_BOT_ADVANCED_COMMANDS_ROLES")
     async def remove_subreddit(
         self, ctx: commands.context.Context, subreddit: format_input
     ) -> None:
         message = f"Subreddit {subreddit} has been removed!"
-        if self.subreddit_is_subscribed(channel_id=ctx.channel.id, subreddit=subreddit):
-            self.manage_subscription(
+        if self.reddit.subreddit_is_subscribed(
+            channel_id=ctx.channel.id, subreddit=subreddit
+        ):
+            self.reddit.manage_subscription(
                 channel_id=ctx.channel.id,
                 subreddit=subreddit,
                 subscribe=False,
@@ -69,8 +81,10 @@ class RedditCommands(commands.Cog, RedditMixin):
         await ctx.send(message)
 
     @commands.command(name="fetch", help="Fetch new posts from a specified subreddit")
-    @commands.has_any_role(
-        *DISCORD_BOT_ADVANCED_COMMANDS_ROLES, *DISCORD_BOT_NORMAL_COMMANDS_ROLES
+    @from_config(
+        commands.has_any_role,
+        "DISCORD_BOT_ADVANCED_COMMANDS_ROLES",
+        "DISCORD_BOT_NORMAL_COMMANDS_ROLES",
     )
     async def fetch_from_sub(
         self,
@@ -80,14 +94,14 @@ class RedditCommands(commands.Cog, RedditMixin):
     ) -> None:
         """Fetch a post from a subreddit and post to discord."""
         async with ctx.typing():
-            if self.subreddit_is_banned(subreddit=subreddit_or_redditor):
+            if self.reddit.subreddit_is_banned(subreddit=subreddit_or_redditor):
                 await ctx.send(
                     f"Subreddit {subreddit_or_redditor} is banned and cannot be fetched!"
                 )
 
-            elif submissions := await self.fetch(
+            elif submissions := await self.reddit.fetch(
                 subreddit_or_redditor=subreddit_or_redditor,
-                search_term="+".join(submission_name_args[:]),
+                search_term="+".join(submission_name_args),
             ):
                 [
                     await ctx.send(embed=await create_discord_embed(sub))
@@ -97,8 +111,10 @@ class RedditCommands(commands.Cog, RedditMixin):
                 await ctx.send(f"No results found for {subreddit_or_redditor}!")
 
     @commands.command(name="subbed", help="List all subscribed subreddits")
-    @commands.has_any_role(
-        *DISCORD_BOT_ADVANCED_COMMANDS_ROLES, *DISCORD_BOT_NORMAL_COMMANDS_ROLES
+    @from_config(
+        commands.has_any_role,
+        "DISCORD_BOT_ADVANCED_COMMANDS_ROLES",
+        "DISCORD_BOT_ADVANCED_COMMANDS_ROLES",
     )
     async def view_subbed(self, ctx: commands.context.Context) -> None:
         """View the list of subscribed subreddits."""
@@ -106,7 +122,7 @@ class RedditCommands(commands.Cog, RedditMixin):
             channels, subreddits = zip(
                 *(
                     (self.bot.get_channel(channel_id).name, subreddit)
-                    for channel_id, subreddit in self.get_subscriptions()
+                    for channel_id, subreddit in self.reddit.get_subscriptions()
                 )
             )
             table = create_table({"Channel": channels, "Subreddit": subreddits})
@@ -121,20 +137,22 @@ class RedditCommands(commands.Cog, RedditMixin):
             await ctx.send("No subreddits are currently subscribed!")
 
     @commands.command(name="ban", help="Ban a subreddit")
-    @commands.has_any_role(*DISCORD_BOT_ADVANCED_COMMANDS_ROLES)
+    @from_config(commands.has_any_role, "DISCORD_BOT_ADVANCED_COMMANDS_ROLES")
     async def ban_subreddit(
         self, ctx: commands.context.Context, subreddit: format_input
     ) -> None:
         message = f"Subreddit {subreddit} has been banned!"
-        self.manage_moderation(subreddit=subreddit)
+        self.reddit.manage_moderation(subreddit=subreddit)
         await ctx.send(message)
 
     @commands.command(name="banned", help="List all banned subreddits")
-    @commands.has_any_role(
-        *DISCORD_BOT_ADVANCED_COMMANDS_ROLES, *DISCORD_BOT_NORMAL_COMMANDS_ROLES
+    @from_config(
+        commands.has_any_role,
+        "DISCORD_BOT_ADVANCED_COMMANDS_ROLES",
+        "DISCORD_BOT_NORMAL_COMMANDS_ROLES",
     )
     async def view_banned(self, ctx: commands.context.Context) -> None:
-        if banned := self.subreddits.get("banned", []):
+        if banned := self.reddit.subreddits.get("banned", []):
             table = create_table({"Subreddits": banned})
             embed = Embed.from_dict(
                 {"title": "Banned Subreddits", "description": f"```\n{table}\n```"}
@@ -143,14 +161,16 @@ class RedditCommands(commands.Cog, RedditMixin):
         await ctx.send("No subreddits are currently banned!")
 
     @commands.command(name="unban", help="Unban a subreddit")
-    @commands.has_any_role(
-        *DISCORD_BOT_ADVANCED_COMMANDS_ROLES, *DISCORD_BOT_NORMAL_COMMANDS_ROLES
+    @from_config(
+        commands.has_any_role,
+        "DISCORD_BOT_ADVANCED_COMMANDS_ROLES",
+        "DISCORD_BOT_NORMAL_COMMANDS_ROLES",
     )
     async def unban_subreddit(
         self, ctx: commands.context.Context, subreddit: format_input
     ) -> None:
         message = f"Subreddit {subreddit} has been unbanned!"
-        self.manage_moderation(
+        self.reddit.manage_moderation(
             subreddit=subreddit, ban=False, callback=self.fetch_subscriptions.restart
         )
         await ctx.send(message)
@@ -159,9 +179,12 @@ class RedditCommands(commands.Cog, RedditMixin):
     async def fetch_subscriptions(self) -> None:
         """Fetch submissions from subscribed subreddits."""
         if subreddits := {
-            subreddit: channel_id for channel_id, subreddit in self.get_subscriptions()
+            subreddit: channel_id
+            for channel_id, subreddit in self.reddit.get_subscriptions()
         }:
-            subscribed = await self.reddit.subreddit("+".join(subreddits.keys()))
+            subscribed = await self.reddit.request.subreddit(
+                "+".join(subreddits.keys())
+            )
             try:
                 async for submission in subscribed.stream.submissions(
                     skip_existing=True
@@ -177,7 +200,11 @@ class RedditCommands(commands.Cog, RedditMixin):
                 RequestException,
                 ClientOSError,
                 asyncio.exceptions.TimeoutError,
-            ):
+                asyncprawcore.exceptions.ResponseException,
+                Exception,
+            ) as error:
+                logger = logging.getLogger(self.bot.config.LOGFILENAME)
+                logger.error(format_exception(error=error))
                 self.fetch_subscriptions.restart()
 
 
@@ -206,5 +233,6 @@ class CommandsErrorHandler(commands.Cog):
         elif isinstance(error, commands.UserInputError):
             message = "Something about your input was wrong, please check your input and try again!"
 
-        self.bot.logger.error(format_exception(error=error))
+        logger = logging.getLogger(self.bot.config.LOGFILENAME)
+        logger.error(format_exception(error=error))
         await ctx.send(message)

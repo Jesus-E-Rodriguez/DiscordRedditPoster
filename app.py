@@ -1,31 +1,29 @@
 """Main app."""
+from typing import Optional, Iterable
 
 from client.bot import Bot
 from client.cogs import RedditCommands, CommandsErrorHandler
-from settings import (
-    FILENAME,
-    DISCORD_BOT_TOKEN,
-    REDDIT_BOT_ID,
-    REDDIT_BOT_SECRET,
-    logger,
-)
+import plugins
+import config
 
 
-def main():
-    """Main function."""
-    bot = Bot(command_prefix="!")
-    bot.logger = logger
-    bot.add_cog(
-        RedditCommands(
-            bot=bot,
-            filename=FILENAME,
-            client_id=REDDIT_BOT_ID,
-            client_secret=REDDIT_BOT_SECRET,
-        )
-    )
-    bot.add_cog(CommandsErrorHandler(bot=bot))
-    bot.run(DISCORD_BOT_TOKEN)
+def create_bot(
+    configuration: object, cogs: Optional[Iterable] = None, command_prefix: str = "!"
+) -> Bot:
+    """Create bot."""
+    bot = Bot(command_prefix=command_prefix)
+    bot.config = configuration
+    if cogs:
+        [bot.add_cog(cog(bot=bot)) for cog in cogs]
+    return bot
 
 
 if __name__ == "__main__":
-    main()
+    """Main function."""
+    commands = (
+        RedditCommands,
+        CommandsErrorHandler,
+        *plugins.Cogs,
+    )
+    discord_bot = create_bot(configuration=config.ProductionConfig, cogs=commands)
+    discord_bot.run(discord_bot.config.DISCORD_BOT_TOKEN)

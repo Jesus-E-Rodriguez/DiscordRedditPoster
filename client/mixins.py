@@ -9,24 +9,14 @@ from asyncpraw.models import ListingGenerator
 from client.models import RedditHelper
 
 
-class StorageMixin:
+class Storage:
     """Mixin for storing data."""
 
-    def __init__(self, filename: str = "data.json", *args, **kwargs) -> None:
+    def __init__(self, filename: str = "data.json") -> None:
         """Initialize the mixin."""
         self.filename = filename
-        self.data = {}
 
-    def set_data(
-        self, data: Dict[str, Any], callback: Optional[Callable] = None
-    ) -> None:
-        """Saves the given data to the given filename in json format."""
-        with open(self.filename, "w") as file:
-            json.dump(data, file)
-        if callback:
-            callback()
-
-    def get_data(
+    def get(
         self,
         default: Optional[Dict[str, Any]] = None,
         callback: Optional[Callable] = None,
@@ -34,34 +24,41 @@ class StorageMixin:
         """Retrieves data from the given filename as a serialized json object.
         Or creates a file with the default if it doesn't exist.
         """
+
         data = default or {}
         try:
             with open(self.filename, "r") as file:
                 data = json.load(file)
         except (json.decoder.JSONDecodeError, FileNotFoundError):
-            self.set_data(data)
+            self.set(data)
         if callback:
             callback()
         return data
 
+    def set(self, data: Dict[str, Any], callback: Optional[Callable] = None) -> None:
+        """Saves the given data to the given filename in json format."""
+        with open(self.filename, "w") as file:
+            json.dump(data, file)
+        if callback:
+            callback()
 
-class RedditMixin(StorageMixin):
+
+class Reddit:
     """Base mixin for reddit functionality."""
 
     def __init__(
         self,
         client_id: str,
         client_secret: str,
+        filename: str = "data.json",
         callback: Optional[Callable] = None,
-        *args,
-        **kwargs,
     ) -> None:
         """Initialize the mixin."""
-        super().__init__(*args, **kwargs)
-        self.subreddits = self.get_data(
+        self.storage = Storage(filename=filename)
+        self.subreddits = self.storage.get(
             default={"subscribed": [], "banned": []}, callback=callback
         )
-        self.reddit = asyncpraw.Reddit(
+        self.request = asyncpraw.Reddit(
             client_id=client_id,
             client_secret=client_secret,
             user_agent=f"DISCORD_BOT:{client_id}:1.0",
@@ -73,7 +70,7 @@ class RedditMixin(StorageMixin):
         try:
             _ = [
                 sub
-                async for sub in self.reddit.subreddits.search_by_name(
+                async for sub in self.request.subreddits.search_by_name(
                     query=subreddit, exact=True
                 )
             ]
@@ -102,7 +99,7 @@ class RedditMixin(StorageMixin):
 
         results = []
         try:
-            helper = RedditHelper(reddit=self.reddit, method=search_type)
+            helper = RedditHelper(reddit=self.request, method=search_type)
             results = await helper.filter(
                 query=subreddit_or_redditor,
                 search_term=search_term,
@@ -132,7 +129,7 @@ class RedditMixin(StorageMixin):
                 self.subreddits.get("subscribed", []).remove(subscription)
             except ValueError:
                 pass
-        self.set_data(self.subreddits, callback=callback)
+        self.storage.set(self.subreddits, callback=callback)
 
     def manage_moderation(
         self,
@@ -153,7 +150,7 @@ class RedditMixin(StorageMixin):
                 self.subreddits.get("banned", []).remove(subreddit)
             except ValueError:
                 pass
-        self.set_data(self.subreddits, callback=callback)
+        self.storage.set(self.subreddits, callback=callback)
 
     def subreddit_is_banned(self, subreddit: str) -> bool:
         """Checks if the given subreddit is banned."""

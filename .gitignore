@@ -314,6 +314,9 @@ data/*
 logs/*
 !logs/.gitkeep
 
+plugins/*
+!plugins/__init__.py
+
 # Vagrant box
 .vagrant
 Vagrantfile
