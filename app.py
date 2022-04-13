@@ -8,13 +8,12 @@ import config
 
 
 def create_bot(
-    configuration: object, cogs: Optional[Iterable] = None, command_prefix: str = "!"
+    configuration: object, cogs: Optional[Iterable] = (), command_prefix: str = "!"
 ) -> Bot:
     """Create bot."""
     bot = Bot(command_prefix=command_prefix)
     bot.config = configuration
-    if cogs:
-        [bot.add_cog(cog(bot=bot)) for cog in cogs]
+    [bot.add_cog(cog(bot=bot)) for cog in cogs]
     return bot
 
 

@@ -1,7 +1,10 @@
 """Collection of discord cogs."""
+import logging
+
 from discord import Embed
 from discord.ext import tasks, commands
 
+from .bot import Bot
 from .mixins import Reddit
 from .utils import (
     create_table,
@@ -12,20 +15,17 @@ from .utils import (
     EXCEPTIONS,
 )
 
-import logging
-
 
 class RedditCommands(commands.Cog):
     """Main Bot class"""
 
-    def __init__(self, bot: commands.Bot, *args, **kwargs) -> None:
+    def __init__(self, bot: Bot) -> None:
         """Init method."""
-        super().__init__(*args, **kwargs)
         self.bot = bot
         self.reddit = Reddit(
-            client_id=bot.config.REDDIT_CLIENT_ID,
-            client_secret=bot.config.REDDIT_CLIENT_SECRET,
-            filename=bot.config.FILENAME,
+            client_id=self.bot.config.REDDIT_CLIENT_ID,
+            client_secret=self.bot.config.REDDIT_CLIENT_SECRET,
+            filename=self.bot.config.FILENAME,
         )
         self.fetch_subscriptions.start()
 
@@ -201,7 +201,7 @@ class RedditCommands(commands.Cog):
 class CommandsErrorHandler(commands.Cog):
     """Error handling for the bot."""
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: Bot) -> None:
         """Init method."""
         self.bot = bot
 

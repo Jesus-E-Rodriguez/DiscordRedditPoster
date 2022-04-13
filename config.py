@@ -49,9 +49,8 @@ class BaseConfig(EnvMixin):
     REDDIT_CLIENT_SECRET: str
     DISCORD_BOT_ADVANCED_COMMANDS_ROLES: list
     DISCORD_BOT_NORMAL_COMMANDS_ROLES: list
-    ENVIRONMENT: str
     BASE_DIR: str = BASE_DIR
-    FILENAME: bytes = os.path.join(BASE_DIR, "data/subreddits.json")
+    FILENAME: str = os.path.join(BASE_DIR, "data/subreddits.json")
     LOGFILENAME: str = LOGFILENAME
 
 

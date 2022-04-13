@@ -2,9 +2,13 @@
 
 from discord.ext import commands
 
+from config import BaseConfig
+
 
 class Bot(commands.Bot):
     """Main bot class."""
+
+    config: BaseConfig
 
     async def on_ready(self) -> None:
         """Bot ready event."""
