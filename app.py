@@ -25,5 +25,7 @@ if __name__ == "__main__":
         CommandsErrorHandler,
         *plugins.Cogs,
     )
-    discord_bot = create_bot(configuration=config.ProductionConfig, cogs=commands)
+    discord_bot = create_bot(
+        configuration=config.get_config(config.ENVIRONMENT), cogs=commands
+    )
     discord_bot.run(discord_bot.config.DISCORD_BOT_TOKEN)

@@ -3,7 +3,7 @@
 
 ## What is this bot for?
 
-Run the `!sub subreddit` command in a channel to retrieve the newest post every minute from the subreddit you specify.
+Run the `!sub subreddit` command in a channel to stream the lastest submissions from the subreddit you specify.
 
 ## Table of contents
 

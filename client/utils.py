@@ -3,6 +3,7 @@ import asyncio
 import socket
 import traceback
 from datetime import datetime
+from functools import wraps
 from typing import Any, Union, Dict, Optional, Iterable, Generator, Mapping, Callable
 
 import asyncprawcore
@@ -28,14 +29,12 @@ def from_config(command: Callable, *cargs, **ckwargs) -> Callable:
     """Feed config args to a command."""
 
     def decorator(func: Callable) -> Callable:
+        @wraps(func)
         async def wrapper(ctx, *args, **kwargs) -> Any:
             new_args = ()
             for carg in cargs:
-                if attr := getattr(
-                    ctx.bot.config,
-                    carg,
-                ):
-                    new_args += (*attr,) if isinstance(attr, Iterable) else attr
+                if attr := ctx.bot.config.get(carg):
+                    new_args += (*attr,)
             if command(*new_args, **ckwargs):
                 return await func(ctx, *args, **kwargs)
 

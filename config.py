@@ -2,12 +2,14 @@
 import logging
 import os
 from logging.config import dictConfig
-from typing import List
-
 from dotenv import load_dotenv
+
+from env import EnvMixin
 
 load_dotenv()
 
+
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 LOGFILENAME = os.getenv("LOGFILENAME", default="discord_bot")
 
@@ -36,22 +38,20 @@ dictConfig(
 )
 
 
-class BaseConfig:
+class BaseConfig(EnvMixin):
     """Base configuration"""
 
+    ENVIRONMENT: str = ENVIRONMENT
     DEBUG: bool = False
     TESTING: bool = False
+    DISCORD_BOT_TOKEN: str
+    REDDIT_CLIENT_ID: str
+    REDDIT_CLIENT_SECRET: str
+    DISCORD_BOT_ADVANCED_COMMANDS_ROLES: list
+    DISCORD_BOT_NORMAL_COMMANDS_ROLES: list
+    ENVIRONMENT: str
     BASE_DIR: str = BASE_DIR
     FILENAME: bytes = os.path.join(BASE_DIR, "data/subreddits.json")
-    DISCORD_BOT_TOKEN: str = os.getenv("DISCORD_BOT_TOKEN")
-    REDDIT_CLIENT_ID: str = os.getenv("REDDIT_CLIENT_ID")
-    REDDIT_CLIENT_SECRET: str = os.getenv("REDDIT_CLIENT_SECRET")
-    DISCORD_BOT_ADVANCED_COMMANDS_ROLES: List[str] = os.getenv(
-        "DISCORD_BOT_ADVANCED_COMMANDS_ROLES", default=[]
-    ).split(",")
-    DISCORD_BOT_NORMAL_COMMANDS_ROLES: List[str] = os.getenv(
-        "DISCORD_BOT_NORMAL_COMMANDS_ROLES", default=[]
-    ).split(",")
     LOGFILENAME: str = LOGFILENAME
 
 
@@ -64,3 +64,13 @@ class DevelopmentConfig(BaseConfig):
 
 class ProductionConfig(BaseConfig):
     """Production configuration."""
+
+
+def get_config(env: str) -> BaseConfig:
+    """Get configuration based on environment."""
+    if env.lower() == "development":
+        return DevelopmentConfig()
+    elif env.lower() == "production":
+        return ProductionConfig()
+    else:
+        raise ValueError(f"Invalid environment: {env}")

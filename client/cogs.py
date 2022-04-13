@@ -90,15 +90,14 @@ class RedditCommands(commands.Cog):
     ) -> None:
         """Fetch a post from a subreddit and post to discord."""
         async with ctx.typing():
+            search_kwargs = {"subreddit_or_redditor": subreddit_or_redditor}
+            if submission_name_args:
+                search_kwargs["search_term"] = "+".join(submission_name_args)
             if self.reddit.subreddit_is_banned(subreddit=subreddit_or_redditor):
                 await ctx.send(
                     f"Subreddit {subreddit_or_redditor} is banned and cannot be fetched!"
                 )
-
-            elif submissions := await self.reddit.fetch(
-                subreddit_or_redditor=subreddit_or_redditor,
-                search_term="+".join(submission_name_args),
-            ):
+            elif submissions := await self.reddit.fetch(**search_kwargs):
                 [
                     await ctx.send(embed=await create_discord_embed(sub))
                     async for sub in submissions
